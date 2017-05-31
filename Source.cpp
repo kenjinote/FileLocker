@@ -14,24 +14,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		DragAcceptFiles(hWnd, TRUE);
 		break;
 	case WM_PAINT:
-	{
-		PAINTSTRUCT ps;
-		HDC hdc = BeginPaint(hWnd, &ps);
-		RECT rect;
-		GetClientRect(hWnd, &rect);
-		if (hFile)
 		{
-			TCHAR szText[MAX_PATH];
-			wsprintf(szText, TEXT("%s をロックしました。キャンセルするにはESCを押してください。"), szFilePath);
-			DrawText(hdc, szText, -1, &rect, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+			PAINTSTRUCT ps;
+			HDC hdc = BeginPaint(hWnd, &ps);
+			RECT rect;
+			GetClientRect(hWnd, &rect);
+			if (hFile)
+			{
+				TCHAR szText[MAX_PATH];
+				wsprintf(szText, TEXT("%s をロックしました。キャンセルするにはESCを押してください。"), szFilePath);
+				DrawText(hdc, szText, -1, &rect, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+			}
+			else
+			{
+				DrawText(hdc, TEXT("ロックするファイルをドラッグしてください。"), -1, &rect, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
+			}
+			EndPaint(hWnd, &ps);
 		}
-		else
-		{
-			DrawText(hdc, TEXT("ロックするファイルをドラッグしてください。"), -1, &rect, DT_CENTER | DT_SINGLELINE | DT_VCENTER);
-		}
-		EndPaint(hWnd, &ps);
-	}
-	break;
+		break;
 	case WM_KEYDOWN:
 		if (wParam == VK_ESCAPE)
 		{
@@ -45,40 +45,41 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	case WM_DROPFILES:
-	{
-		const UINT iFileNum = DragQueryFile((HDROP)wParam, -1, NULL, 0);
-		TCHAR szTmp[MAX_PATH];
-		if (iFileNum == 1)
 		{
-			if (hFile)
+			const UINT iFileNum = DragQueryFile((HDROP)wParam, -1, NULL, 0);
+			TCHAR szTmp[MAX_PATH];
+			if (iFileNum == 1)
 			{
-				UnlockFile(hFile, 0, 0, 0xffffffff, 0xffffffff);
-				CloseHandle(hFile);
-				hFile = 0;
+				if (hFile)
+				{
+					UnlockFile(hFile, 0, 0, 0xffffffff, 0xffffffff);
+					CloseHandle(hFile);
+					hFile = 0;
+				}
+				DragQueryFile((HDROP)wParam, 0, szTmp, MAX_PATH);
+				hFile = CreateFile(
+					szTmp,
+					GENERIC_READ,
+					0,
+					NULL,
+					OPEN_EXISTING,
+					FILE_ATTRIBUTE_NORMAL,
+					NULL);
+				if (hFile != INVALID_HANDLE_VALUE)
+				{
+					LockFile(hFile, 0, 0, 0xffffffff, 0xffffffff);
+					lstrcpy(szFilePath, szTmp);
+				}
+				else
+				{
+					hFile = 0;
+					MessageBox(hWnd, TEXT("指定されたファイルをロックできませんでした。他のアプリケーションで開かれていないか確認してください。"), 0, MB_ICONERROR);
+				}
+				InvalidateRect(hWnd, 0, 1);
 			}
-			DragQueryFile((HDROP)wParam, 0, szTmp, MAX_PATH);
-			hFile = CreateFile(
-				szTmp,
-				GENERIC_READ,
-				FILE_SHARE_READ | FILE_SHARE_WRITE,
-				NULL,
-				OPEN_EXISTING,
-				FILE_ATTRIBUTE_NORMAL,
-				NULL);
-			if (hFile != INVALID_HANDLE_VALUE)
-			{
-				LockFile(hFile, 0, 0, 0xffffffff, 0xffffffff);
-				lstrcpy(szFilePath, szTmp);
-			}
-			else
-			{
-				hFile = 0;
-			}
-			InvalidateRect(hWnd, 0, 1);
+			DragFinish((HDROP)wParam);
 		}
-		DragFinish((HDROP)wParam);
-	}
-	break;
+		break;
 	case WM_DESTROY:
 		if (hFile)
 		{
